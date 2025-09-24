@@ -1,26 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import {
-  ConnectWallet,
-  Wallet,
-  WalletDropdown,
-  WalletDropdownLink,
-  WalletDropdownDisconnect,
-} from '@coinbase/onchainkit/wallet';
-import {
-  Address,
-  Avatar,
-  Name,
-  Identity,
-  EthBalance,
-} from '@coinbase/onchainkit/identity';
-import { parseEther, formatUnits } from 'viem';
+import { useState } from 'react';
+import Image from 'next/image';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import PaymentModal from './components/PaymentModal';
 
 interface GeneratedImage {
   url: string;
   base64: string;
+  type?: string;
+  spec?: unknown;
 }
 
 interface ImageRequest {
@@ -40,6 +29,8 @@ export default function ImageGenerator() {
   const [imageRequest, setImageRequest] = useState<ImageRequest | null>(null);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const PROGRESS_TOTAL = 5;
+  const [progressCurrent, setProgressCurrent] = useState(0);
 
   // Generate unique request ID
   const generateRequestId = () => {
@@ -61,35 +52,48 @@ export default function ImageGenerator() {
   // Generate images using OpenAI API
   const generateImages = async (prompt: string): Promise<GeneratedImage[]> => {
     try {
+      console.log('[Images] generation start', { promptLength: prompt.length });
       const images: GeneratedImage[] = [];
+      const imageTypes = ['icon', 'screenshot', 'hero', 'og', 'splash'];
+      setProgressCurrent(0);
       
-      // Generate 5 images (DALL-E 3 can only generate 1 image per request)
-      for (let i = 0; i < 5; i++) {
+      // Generate 5 different types of images for Farcaster Mini App manifest
+      for (const imageType of imageTypes) {
+        const startedAt = Date.now();
+        console.log('[Images] requesting', { imageType });
         const response = await fetch('/api/generate-image', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ prompt, imageType }),
         });
         
         if (!response.ok) {
-          throw new Error('Failed to generate image');
+          const text = await response.text().catch(() => '');
+          console.error('[Images] request failed', { imageType, status: response.status, text });
+          throw new Error(`Failed to generate ${imageType} image (${response.status})`);
         }
         
         const data = await response.json();
-        
+        console.log('[Images] response received', { imageType, hasImage: Boolean(data?.image), url: data?.image?.url, base64Len: data?.image?.base64?.length });
+
         if (data.image) {
           images.push({
             url: data.image.url,
-            base64: data.image.base64
+            base64: data.image.base64,
+            type: imageType,
+            spec: data.image.spec
           });
+          setProgressCurrent((prev) => Math.min(prev + 1, PROGRESS_TOTAL));
         }
-        
+        console.log('[Images] step done', { imageType, durationMs: Date.now() - startedAt });
+
         // Small delay between requests to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
+      console.log('[Images] generation complete', { count: images.length });
       return images;
     } catch (error) {
       console.error('Error generating images:', error);
@@ -107,15 +111,16 @@ export default function ImageGenerator() {
     document.body.removeChild(link);
   };
 
-  // Handle payment modal close
-  const handlePaymentModalClose = async () => {
-    setShowPaymentModal(false);
+  // Handle payment success
+  const handlePaymentSuccess = async () => {
     if (currentRequestId) {
       // Generate images after payment
       try {
+        console.log('[Payment->Images] starting image generation after payment', { currentRequestId });
         setIsCheckingPayment(true);
         const images = await generateImages(prompt);
         
+        console.log('[Payment->Images] images ready, updating state', { imagesCount: images.length });
         setImageRequest({
           ready: true,
           images,
@@ -126,12 +131,17 @@ export default function ImageGenerator() {
         setIsGenerating(false);
         setIsCheckingPayment(false);
       } catch (error) {
-        console.error('Error generating images:', error);
+        console.error('[Payment->Images] error generating images:', error);
         alert('Error generating images. Please try again.');
         setIsGenerating(false);
         setIsCheckingPayment(false);
       }
     }
+  };
+
+  // Handle payment modal close
+  const handlePaymentModalClose = () => {
+    setShowPaymentModal(false);
   };
 
   // Reset form
@@ -156,29 +166,7 @@ export default function ImageGenerator() {
             </p>
           </div>
           <div className="wallet-container">
-            <Wallet>
-              <ConnectWallet>
-                <Avatar className="h-6 w-6" />
-                <Name />
-              </ConnectWallet>
-              <WalletDropdown>
-                <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                  <Avatar />
-                  <Name />
-                  <Address />
-                  <EthBalance />
-                </Identity>
-                <WalletDropdownLink
-                  icon="wallet"
-                  href="https://keys.coinbase.com"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Wallet
-                </WalletDropdownLink>
-                <WalletDropdownDisconnect />
-              </WalletDropdown>
-            </Wallet>
+            <ConnectButton />
           </div>
         </div>
       </header>
@@ -203,9 +191,13 @@ export default function ImageGenerator() {
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="A beautiful sunset over mountains with a lake reflection..."
+                maxLength={300}
                   className="w-full h-32 p-4 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   disabled={isGenerating || isCheckingPayment}
                 />
+              <div className="mt-2 text-right text-xs text-gray-500 dark:text-gray-400">
+                {prompt.length}/300
+              </div>
                 
                 <div className="mt-6 flex items-center justify-between">
                   <div className="text-sm text-gray-600 dark:text-gray-400">
@@ -250,6 +242,21 @@ export default function ImageGenerator() {
                     Complete Payment
                   </button>
                 )}
+                {(isGenerating || isCheckingPayment) && (
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-yellow-700 dark:text-yellow-300">Generating images...</span>
+                      <span className="text-sm text-yellow-700 dark:text-yellow-300">{Math.round((progressCurrent/PROGRESS_TOTAL)*100)}%</span>
+                    </div>
+                    <div className="w-full h-3 bg-yellow-200 dark:bg-yellow-800/40 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-yellow-500 dark:bg-yellow-400 transition-all duration-500"
+                        style={{ width: `${(progressCurrent/PROGRESS_TOTAL)*100}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 text-xs text-yellow-700 dark:text-yellow-300">{progressCurrent} / {PROGRESS_TOTAL} images</div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -262,25 +269,34 @@ export default function ImageGenerator() {
                   ✅ Images Generated Successfully!
                 </h3>
                 <p className="text-green-700 dark:text-green-300">
-                  Your prompt: <em>"{imageRequest.prompt}"</em>
+                  Your prompt: <em>&quot;{imageRequest.prompt}&quot;</em>
                 </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {imageRequest.images.map((image, index) => (
                   <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-                    <img
+                    <Image
                       src={`data:image/png;base64,${image.base64}`}
-                      alt={`Generated image ${index + 1}`}
+                      alt={`${image.type} image`}
                       className="w-full h-64 object-cover"
+                      width={1024}
+                      height={1024}
                     />
                     <div className="p-4">
-                      <h4 className="font-medium mb-2">Image {index + 1}</h4>
+                      <h4 className="font-medium mb-2 capitalize">{image.type} Image</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        {image.type === 'icon' && '1024x1024px - App icon (square format)'}
+                        {image.type === 'screenshot' && '1024x1024px - App screenshot (portrait style)'}
+                        {image.type === 'hero' && '1024x1024px - Promotional banner (landscape style)'}
+                        {image.type === 'og' && '1024x1024px - Social media sharing (Open Graph style)'}
+                        {image.type === 'splash' && '1024x1024px - Loading screen (simple design)'}
+                      </p>
                       <button
                         onClick={() => downloadImage(image, index)}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
                       >
-                        Download
+                        Download {image.type}
                       </button>
                     </div>
                   </div>
@@ -341,6 +357,7 @@ export default function ImageGenerator() {
         <PaymentModal
           isOpen={showPaymentModal}
           onClose={handlePaymentModalClose}
+          onPaymentSuccess={handlePaymentSuccess}
           requestId={currentRequestId}
           prompt={prompt}
         />

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { parseUnits } from 'viem';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onPaymentSuccess?: () => void;
   requestId: string;
   prompt: string;
 }
@@ -22,11 +23,11 @@ const CONTRACT_ABI = [
   }
 ] as const;
 
-// Contract address - will be set after deployment
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}` || '0x0000000000000000000000000000000000000000';
+// Contract address - deployed contract
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS as `0x${string}`;
 
-// USDC contract address on Base mainnet
-const USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+// USDC contract address on Base Sepolia
+const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e' as `0x${string}`;
 
 // USDC ABI for approval
 const USDC_ABI = [
@@ -80,7 +81,7 @@ const USDC_ABI = [
   }
 ] as const;
 
-export default function PaymentModal({ isOpen, onClose, requestId, prompt }: PaymentModalProps) {
+export default function PaymentModal({ isOpen, onClose, onPaymentSuccess, requestId, prompt }: PaymentModalProps) {
   const { address, isConnected } = useAccount();
   const [step, setStep] = useState<'approve' | 'pay' | 'success'>('approve');
   const [isApproving, setIsApproving] = useState(false);
@@ -90,7 +91,7 @@ export default function PaymentModal({ isOpen, onClose, requestId, prompt }: Pay
   const { writeContract: writeUSDCContract, data: approveHash, isPending: isApprovePending } = useWriteContract();
   
   // Wait for approval transaction
-  const { isLoading: isApproveConfirming } = useWaitForTransactionReceipt({
+  const { isLoading: isApproveConfirming, isSuccess: isApproveSuccess, isError: isApproveError } = useWaitForTransactionReceipt({
     hash: approveHash,
   });
 
@@ -98,9 +99,25 @@ export default function PaymentModal({ isOpen, onClose, requestId, prompt }: Pay
   const { writeContract: writeContract, data: paymentHash, isPending: isPaymentPending } = useWriteContract();
   
   // Wait for payment transaction
-  const { isLoading: isPaymentConfirming } = useWaitForTransactionReceipt({
+  const { isLoading: isPaymentConfirming, isSuccess: isPaymentSuccess, isError: isPaymentError } = useWaitForTransactionReceipt({
     hash: paymentHash,
   });
+
+  // Debug logs for environment and props
+  useEffect(() => {
+    console.log('[PaymentModal] mounted/props', {
+      CONTRACT_ADDRESS,
+      USDC_ADDRESS,
+      isOpen,
+      requestId,
+      prompt,
+    });
+  }, [isOpen, requestId, prompt]);
+
+  // Log account/connection changes
+  useEffect(() => {
+    console.log('[PaymentModal] account state', { address, isConnected });
+  }, [address, isConnected]);
 
   // Handle USDC approval
   const handleApprove = async () => {
@@ -114,17 +131,23 @@ export default function PaymentModal({ isOpen, onClose, requestId, prompt }: Pay
     try {
       // Approve 1 USDC (6 decimals)
       const amount = parseUnits('1', 6);
-      
+      console.log('[Approval] sending approve tx', {
+        owner: address,
+        spender: CONTRACT_ADDRESS,
+        token: USDC_ADDRESS,
+        amount: amount?.toString?.() ?? String(amount),
+      });
+
       await writeUSDCContract({
         address: USDC_ADDRESS,
         abi: USDC_ABI,
         functionName: 'approve',
         args: [CONTRACT_ADDRESS, amount],
       });
-      
-      setStep('pay');
+
+      console.log('[Approval] approve tx sent', { approveHash });
     } catch (error) {
-      console.error('Approval failed:', error);
+      console.error('[Approval] failed:', error);
       alert('Approval failed. Please try again.');
     } finally {
       setIsApproving(false);
@@ -141,6 +164,12 @@ export default function PaymentModal({ isOpen, onClose, requestId, prompt }: Pay
     setIsPaying(true);
     
     try {
+      console.log('[Payment] sending payment tx', {
+        contractAddress: CONTRACT_ADDRESS,
+        functionName: 'payForImages',
+        userAddress: address
+      });
+      
       await writeContract({
         address: CONTRACT_ADDRESS,
         abi: CONTRACT_ABI,
@@ -148,14 +177,55 @@ export default function PaymentModal({ isOpen, onClose, requestId, prompt }: Pay
         args: [],
       });
       
-      setStep('success');
+      console.log('[Payment] payment tx sent', { paymentHash });
     } catch (error) {
-      console.error('Payment failed:', error);
-      alert('Payment failed. Please try again.');
+      console.error('[Payment] failed:', error);
+      alert(`Payment failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsPaying(false);
     }
   };
+
+  // React to approval receipt
+  useEffect(() => {
+    console.log('[Approval] receipt state', {
+      approveHash,
+      isApproveConfirming,
+      isApproveSuccess,
+      isApproveError,
+    });
+    if (approveHash && isApproveSuccess) {
+      console.log('[Approval] confirmed, moving to pay step');
+      setStep('pay');
+    }
+    if (approveHash && isApproveError) {
+      console.warn('[Approval] tx error');
+    }
+  }, [approveHash, isApproveConfirming, isApproveSuccess, isApproveError]);
+
+  // React to payment receipt
+  useEffect(() => {
+    console.log('[Payment] receipt state', {
+      paymentHash,
+      isPaymentConfirming,
+      isPaymentSuccess,
+      isPaymentError,
+    });
+    if (paymentHash && isPaymentSuccess) {
+      console.log('[Payment] confirmed, marking success and invoking callback');
+      setStep('success');
+      if (onPaymentSuccess) {
+        try {
+          onPaymentSuccess();
+        } catch (e) {
+          console.error('[Payment] onPaymentSuccess callback threw', e);
+        }
+      }
+    }
+    if (paymentHash && isPaymentError) {
+      console.warn('[Payment] tx error');
+    }
+  }, [paymentHash, isPaymentConfirming, isPaymentSuccess, isPaymentError, onPaymentSuccess]);
 
   if (!isOpen) return null;
 
@@ -175,7 +245,7 @@ export default function PaymentModal({ isOpen, onClose, requestId, prompt }: Pay
         <div className="space-y-4">
           <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Your prompt:</p>
-            <p className="font-medium">"{prompt}"</p>
+            <p className="font-medium">&ldquo;{prompt}&rdquo;</p>
           </div>
 
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
