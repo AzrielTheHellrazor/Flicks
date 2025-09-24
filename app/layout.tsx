@@ -4,8 +4,13 @@ import './globals.css';
 import { Providers } from './providers';
 
 export const metadata: Metadata = {
-  title: 'Flicks - AI Image Generator for Farcaster',
-  description: 'Generate high-quality AI images with DALL-E 3. Pay $1 USDC via smart contract and receive 5 images instantly.',
+  title: 'Flicks',
+  description: 'Generate high-quality AI images with DALL-E 3. Pay $1 USDC via smart contract and receive 4 images instantly.',
+  icons: {
+    icon: '/favicon.png',
+    shortcut: '/favicon.png',
+    apple: '/favicon.png',
+  },
 };
 
 export default function RootLayout({

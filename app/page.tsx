@@ -367,11 +367,20 @@ export default function ImageGenerator() {
       {/* Header */}
       <header className="pt-4 pr-4">
         <div className="flex justify-between items-center">
-          <div className="pl-4">
-            <h1 className="text-2xl font-bold text-purple-600">Flicks</h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Farcaster AI Image Generator • Pay $1 USDC • Get 4 Images
-            </p>
+          <div className="pl-4 flex items-center gap-3">
+            <Image 
+              src="/favicon.png" 
+              alt="Flicks Logo" 
+              width={40}
+              height={40}
+              className="w-10 h-10 rounded-lg"
+            />
+            <div>
+              <h1 className="text-2xl font-bold text-purple-600">Flicks</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Farcaster AI Image Generator
+              </p>
+            </div>
           </div>
           <div className="wallet-container">
             <ConnectButton />
@@ -403,18 +412,7 @@ export default function ImageGenerator() {
                   className="w-full h-32 p-4 border border-gray-300 dark:border-gray-600 rounded-lg resize-none focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
                   disabled={isGenerating || isCheckingPayment}
                 />
-              <div className="mt-2 flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
-                <div className="flex gap-4">
-                  <span className="text-purple-600 dark:text-purple-400 cursor-pointer hover:underline" onClick={() => setPrompt("Farcaster app icon, decentralized social media, minimalist design, purple theme, clean lines")}>
-                    🎯 Farcaster Icon
-                  </span>
-                  <span className="text-blue-600 dark:text-blue-400 cursor-pointer hover:underline" onClick={() => setPrompt("Farcaster cast promotional banner, social media design, engaging visual, purple and blue colors")}>
-                    🎨 Cast Banner
-                  </span>
-                  <span className="text-indigo-600 dark:text-indigo-400 cursor-pointer hover:underline" onClick={() => setPrompt("Farcaster frame interface design, interactive elements, modern UI, decentralized social")}>
-                    📱 Frame UI
-                  </span>
-                </div>
+              <div className="mt-2 flex justify-end text-xs text-gray-500 dark:text-gray-400">
                 <span>{prompt.length}/300</span>
               </div>
                 
@@ -438,57 +436,6 @@ export default function ImageGenerator() {
             </div>
           )}
 
-          {/* Payment Status */}
-          {currentRequestId && !imageRequest && (
-            <div className="mb-8">
-              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
-                  Waiting for Payment
-                </h3>
-                <p className="text-yellow-700 dark:text-yellow-300 mb-4">
-                  Your prompt has been submitted. Please complete the payment to generate your images.
-                </p>
-                <div className="text-sm text-yellow-600 dark:text-yellow-400">
-                  <p>Request ID: <code className="bg-yellow-100 dark:bg-yellow-800 px-2 py-1 rounded">{currentRequestId}</code></p>
-                  {isCheckingPayment && (
-                    <p className="mt-2">🔄 Checking for payment confirmation...</p>
-                  )}
-                </div>
-                {!isCheckingPayment && (
-                  <button
-                    onClick={() => setShowPaymentModal(true)}
-                    className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                  >
-                    Complete Payment
-                  </button>
-                )}
-                {(isGenerating || isCheckingPayment || isGeneratingImages) && (
-                  <div className="mt-6">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm text-yellow-700 dark:text-yellow-300">
-                        {generationStatus || 'Generating images...'}
-                      </span>
-                      <span className="text-sm text-yellow-700 dark:text-yellow-300">
-                        {Math.round((progressCurrent/PROGRESS_TOTAL)*100)}%
-                      </span>
-                    </div>
-                    <div className="w-full h-3 bg-yellow-200 dark:bg-yellow-800/40 rounded-full overflow-hidden relative">
-                      <div
-                        className="h-full bg-gradient-to-r from-yellow-500 to-yellow-400 dark:from-yellow-400 dark:to-yellow-300 transition-all duration-500 ease-out relative"
-                        style={{ width: `${(progressCurrent/PROGRESS_TOTAL)*100}%` }}
-                      >
-                        <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                      </div>
-                    </div>
-                    <div className="mt-2 flex justify-between text-xs text-yellow-700 dark:text-yellow-300">
-                      <span>{progressCurrent} / {PROGRESS_TOTAL} images</span>
-                      <span className="animate-pulse">✨ Creating magic...</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
           {/* Image Placeholders */}
           {showImagePlaceholders && (

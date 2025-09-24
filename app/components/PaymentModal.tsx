@@ -250,7 +250,7 @@ export default function PaymentModal({ isOpen, onClose, onPaymentSuccess, reques
 
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
             <p className="text-sm text-blue-800 dark:text-blue-200">
-              💰 You will pay exactly <strong>$1 USDC</strong> and receive <strong>5 AI images</strong>
+              💰 You will pay exactly <strong>$1 USDC</strong> and receive <strong>4 AI images</strong>
             </p>
           </div>
 
