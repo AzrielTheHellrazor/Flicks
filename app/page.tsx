@@ -27,7 +27,6 @@ interface ImageRequest {
 export default function ImageGenerator() {
   const [prompt, setPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
-  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
   const [imageRequest, setImageRequest] = useState<ImageRequest | null>(null);
   const [isCheckingPayment, setIsCheckingPayment] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -38,11 +37,6 @@ export default function ImageGenerator() {
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [showImagePlaceholders, setShowImagePlaceholders] = useState(false);
 
-  // Generate unique request ID
-  const generateRequestId = () => {
-    return `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  };
-
   // Submit prompt and show payment modal
   const submitPrompt = async () => {
     console.log('[Submit] 🎯 Submit button clicked', { 
@@ -52,8 +46,7 @@ export default function ImageGenerator() {
       hasPrompt: !!prompt.trim(),
       isGenerating, 
       isCheckingPayment, 
-      showPaymentModal,
-      currentRequestId
+      showPaymentModal
     });
     
     if (!prompt.trim() || isGenerating || isCheckingPayment || showPaymentModal) {
@@ -76,12 +69,9 @@ export default function ImageGenerator() {
     });
     
     setIsGenerating(true);
-    const requestId = generateRequestId();
-    setCurrentRequestId(requestId);
     
     console.log('[Submit] 📊 State updated', { 
       isGenerating: true,
-      currentRequestId: requestId,
       showPaymentModal: true
     });
     
@@ -268,17 +258,15 @@ export default function ImageGenerator() {
   // Handle payment success
   const handlePaymentSuccess = async () => {
     console.log('[Payment->Images] 🎉 Payment success triggered', { 
-      currentRequestId, 
       isCheckingPayment,
       prompt: prompt.substring(0, 50) + '...',
       promptLength: prompt.length
     });
     
-    if (currentRequestId && !isCheckingPayment) {
+    if (!isCheckingPayment) {
       // Generate images after payment
       try {
         console.log('[Payment->Images] 🚀 Starting image generation after payment', { 
-          currentRequestId,
           prompt: prompt.substring(0, 100) + '...'
         });
         
@@ -335,8 +323,7 @@ export default function ImageGenerator() {
       }
     } else {
       console.log('[Payment->Images] ⚠️ Payment success ignored', { 
-        reason: !currentRequestId ? 'No currentRequestId' : 'Already checking payment',
-        currentRequestId,
+        reason: 'Already checking payment',
         isCheckingPayment
       });
     }
@@ -351,7 +338,6 @@ export default function ImageGenerator() {
   const resetForm = () => {
     setPrompt('');
     setIsGenerating(false);
-    setCurrentRequestId(null);
     setImageRequest(null);
     setIsCheckingPayment(false);
     setShowPaymentModal(false);
@@ -606,12 +592,12 @@ export default function ImageGenerator() {
       </main>
 
       {/* Payment Modal */}
-      {showPaymentModal && currentRequestId && (
+      {showPaymentModal && (
         <PaymentModal
           isOpen={showPaymentModal}
           onClose={handlePaymentModalClose}
           onPaymentSuccess={handlePaymentSuccess}
-          requestId={currentRequestId}
+          requestId=""
           prompt={prompt}
         />
       )}

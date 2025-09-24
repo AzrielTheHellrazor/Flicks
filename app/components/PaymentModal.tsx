@@ -315,11 +315,6 @@ export default function PaymentModal({ isOpen, onClose, onPaymentSuccess, reques
               )}
             </div>
           )}
-
-          <div className="text-xs text-gray-500 dark:text-gray-400 text-center pt-4 border-t border-gray-200 dark:border-gray-700">
-            <p>Request ID: {requestId}</p>
-            <p>Network: Base Mainnet</p>
-          </div>
         </div>
       </div>
     </div>

@@ -104,12 +104,26 @@ async function generateOptimizedPrompts(projectTemplate: string): Promise<Record
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('[API/generate-image] POST request started');
+    
+    // Check if OpenAI API key is available
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('[API/generate-image] OpenAI API key not found');
+      return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 });
+    }
+    
     const { prompt, imageType } = await request.json();
     const reqStart = Date.now();
     console.log('[API/generate-image] request', { imageType, promptLength: prompt?.length });
     
     if (!prompt) {
+      console.error('[API/generate-image] No prompt provided');
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
+    }
+    
+    if (!imageType) {
+      console.error('[API/generate-image] No imageType provided');
+      return NextResponse.json({ error: 'Image type is required' }, { status: 400 });
     }
     
     // Step 1: Generate project template from user prompt
@@ -183,6 +197,14 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     console.error('[API/generate-image] error generating image:', error);
-    return NextResponse.json({ error: 'Failed to generate image' }, { status: 500 });
+    console.error('[API/generate-image] error details:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      name: error instanceof Error ? error.name : undefined
+    });
+    return NextResponse.json({ 
+      error: 'Failed to generate image',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
